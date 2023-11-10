@@ -1,0 +1,10 @@
+Nume Fisier: Image.bmp
+Dimensiune: FF38
+Latime: F80
+Inaltime: FAA
+Identificatorul Utilizatorului: 1000
+Ultima modificare: Fri Nov 10 15:40:28 2023
+Contorul de legaturi: 1
+Drepturi de acces user: RW-
+Drepturi de acces grup: RW-
+Drepturi de acces altii: R--
