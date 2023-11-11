@@ -2,9 +2,32 @@ Nume Fisier: Image.bmp
 Dimensiune: FF38
 Latime: F80
 Inaltime: FAA
+Dimensiune: 818058 octeti
 Identificatorul Utilizatorului: 1000
-Ultima modificare: Fri Nov 10 15:40:28 2023
+Ultima modificare: Sat Nov 11 17:52:58 2023
 Contorul de legaturi: 1
 Drepturi de acces user: RW-
 Drepturi de acces grup: RW-
 Drepturi de acces altii: R--
+
+Nume Fisier: fisier.txt
+Dimensiune: 0 octeti
+Identificatorul Utilizatorului: 1000
+Ultima modificare: Fri Nov 10 15:19:02 2023
+Contorul de legaturi: 1
+Drepturi de acces user: RW-
+Drepturi de acces grup: RW-
+Drepturi de acces altii: R--
+
+Nume Fisier: Imagine.bmp
+Dimensiune: FF38
+pLatime: F80
+Inaltime: 
+Dimensiune: 7372938 octeti
+Identificatorul Utilizatorului: 1000
+Ultima modificare: Sat Nov 11 17:55:12 2023
+Contorul de legaturi: 1
+Drepturi de acces user: RW-
+Drepturi de acces grup: RW-
+Drepturi de acces altii: R--
+

@@ -10,21 +10,45 @@
 #define BUFFER_SIZE 256
 #define READ_BUFFER_SIZE 2
 
-int verificareBMP(int nrArgumente, char *denumireFisier){
+int verificareArgument(int nrArgumente, char* director){
     struct stat data;
-    int fisier;
+    DIR *dir;
+
     if((nrArgumente != 2)){
-        perror("Usage ./program <fisier_intrare>\n");
+        perror("Usage ./program <director>\n");
         exit(-1);
     }
+    if((dir = opendir(director)) == NULL){
+        perror("Eroare la deschiderea directorului!\n");
+        exit(-1);
+    }
+    if(lstat(director, &data) < 0){
+        perror("Eroare la obtinerea informatiilor despre director!\n");
+        exit(-1);
+    }
+    int m = data.st_mode;
+    if(S_ISDIR(m)){
+        printf("Director!\n");
+        return 1;
+    }
+    else{
+        return 0;
+    }
+}
+
+int verificareBMP(char *denumireFisier){
+    struct stat data;
+    int fisier;
     if((fisier = open(denumireFisier, O_RDONLY)) < 0){
         perror("Eroare la deschiderea fisierului!\n");
         exit(-1);
     }
     if (lstat(denumireFisier, &data) < 0) {
         perror("Eroare la obtinerea informatiilor despre fisier!\n");
+        close(fisier);
         exit(-1);
     }
+    close(fisier);
     int m = data.st_mode;
     if(S_ISREG(m)){
         char *p;
@@ -33,19 +57,20 @@ int verificareBMP(int nrArgumente, char *denumireFisier){
         p = strtok(denumireFisier, ".");
         strcpy(numeFisier, p);
         p = strtok(NULL, ".");
+        if(p == NULL){
+            return 0;
+        }
         strcpy(extensieFisier, p);
         if(strcmp(extensieFisier, "bmp") != 0){
-            perror("Fisierul dat ca argument nu este de tip bmp!>\n");
-            exit(-1);
+            return 0;
         }
-        printf("Ok!\n");
     }
     else
     {
-        perror("Usage ./program <fisier_intrare>\n");
-        exit(-1);
+        perror("Nu este un fisier simplu!\n");
+        return 0;
     }
-    return fisier;
+    return 1;
 }
 
 
@@ -77,7 +102,6 @@ void scriereDataBMP(int fisierIntrare, int fisierIesire){
     while(read(fisierIntrare, buffer, READ_BUFFER_SIZE)> 0)
     {
         count = count + 2;
-        printf("Octeti parcursi: %d\n", count);
         char asciiBuffer[READ_BUFFER_SIZE * 2 + 1];
         for (int i = 0; i < READ_BUFFER_SIZE; i++) {
             sprintf(asciiBuffer + i * 2, "%02X", buffer[i]);
@@ -131,14 +155,20 @@ void scriereDateFisier(int fisierIntrare, int fisierIesire){
     char userAccessRight[BUFFER_SIZE] = "Drepturi de acces user: ";
     char groupAccessRight[BUFFER_SIZE] = "Drepturi de acces grup: ";
     char otherAccessRight[BUFFER_SIZE] = "Drepturi de acces altii: ";
+    char fileSize[BUFFER_SIZE];
     struct stat data;
     if (fstat(fisierIntrare, &data) < 0) {
         perror("Eroare la obtinerea informatiilor despre fisier!\n");
         exit(-1);
-    } 
+    }
+    sprintf(fileSize, "Dimensiune: %d octeti\n", data.st_size);
     sprintf(userID, "Identificatorul Utilizatorului: %d\n", data.st_uid);
     sprintf(lastModified, "Ultima modificare: %s", ctime(&data.st_atime));
     sprintf(nrOfLinks, "Contorul de legaturi: %d\n", data.st_nlink);
+    if(write(fisierIesire, fileSize, strlen(fileSize)) < 0){
+        perror("Eroare la scrierea dimensiunii!\n");
+        exit(-1);
+    }
     if(write(fisierIesire, userID, strlen(userID)) < 0){
         perror("Eroare la scrierea numelui!\n");
         exit(-1);
@@ -211,7 +241,7 @@ void scriereDateFisier(int fisierIntrare, int fisierIesire){
         strcat(otherAccessRight, "X\n");
     }
     else{
-        strcat(otherAccessRight, "-\n");
+        strcat(otherAccessRight, "-\n\n");
     }
     if(write(fisierIesire, otherAccessRight, strlen(otherAccessRight)) < 0){
         perror("Eroare la scrierea drepturilor de acces altii!\n");
@@ -219,22 +249,78 @@ void scriereDateFisier(int fisierIntrare, int fisierIesire){
     }
 }
 
-
-
-int main(int argc, char *argv[]){
-    int fIn = 0, fOut, rd, wr;
-    char *fileName = malloc(BUFFER_SIZE * sizeof(char));
-
-    fIn = verificareBMP(argc, argv[1]);
-    fOut = creareFisier("statistica.txt");
-
-    sprintf(fileName, "Nume Fisier: %s.bmp\n", argv[1]);
-    if(write(fOut, fileName, strlen(fileName)) < 0){
-        perror("Eroare la scrierea numelui!\n");
+void scrieNumeFisier(int fisierIesire, char *denumireFisier){
+    char fileName[BUFFER_SIZE];
+    sprintf(fileName, "Nume Fisier: %s\n", denumireFisier);
+    if(write(fisierIesire, fileName, strlen(fileName)) < 0){
+        perror("Eroare la scrierea numelui fisierului!\n");
         exit(-1);
     }
-    scriereDataBMP(fIn, fOut);
-    scriereDateFisier(fIn, fOut);
+}
+
+void parcurgeDirector(char * director, int *fisierIesire){
+    DIR *dir;
+    struct dirent *intrare;
+
+    if((dir = opendir(director)) == NULL){
+        perror("Eroare la deschiderea directorului!\n");
+        exit(-1);
+    }
+
+    printf("Deschidere director cu succes: %s\n", director);
+    *fisierIesire = creareFisier("statistica.txt");
+
+    while ((intrare = readdir(dir)) != NULL) {
+        char buffer[BUFFER_SIZE];
+        sprintf(buffer, "%s/%s", director, intrare->d_name);
+        printf("Element gasit: %s\n", buffer);
+
+        struct stat fileStat;
+        if (stat(buffer, &fileStat) < 0) {
+            perror("Eroare la preluarea informatiilor despre element!\n");
+            exit(-1);
+        }
+
+        if (S_ISREG(fileStat.st_mode)){
+            if(verificareBMP(buffer)){
+                char caleCompleta[BUFFER_SIZE];
+                sprintf(caleCompleta, "%s/%s", director, intrare->d_name);
+                int fisierBMP = open(caleCompleta, O_RDONLY);
+                if (fisierBMP < 0) {
+                    perror("Eroare la deschiderea fisierului BMP!\n");
+                    exit(-1);
+                }
+                scrieNumeFisier(*fisierIesire, intrare->d_name);
+                scriereDataBMP(fisierBMP, *fisierIesire);
+                scriereDateFisier(fisierBMP, *fisierIesire);
+                close(fisierBMP);
+            }
+            else
+            {
+                char caleCompleta[BUFFER_SIZE];
+                sprintf(caleCompleta, "%s/%s", director, intrare->d_name);
+                int fisierSimplu = open(caleCompleta, O_RDONLY);
+                if(fisierSimplu < 0){
+                    perror("Eroare la deschiderea fisierului simplu!\n");
+                    exit(-1);
+                }
+                scrieNumeFisier(*fisierIesire, intrare->d_name);
+                scriereDateFisier(fisierSimplu, *fisierIesire);
+                close(fisierSimplu);
+            }
+        }
+    }
+    close(*fisierIesire);
+    closedir(dir);
+}
+
+int main(int argc, char *argv[]){
+    int fIn = 0, fOut = 0, rd, wr;
+    char *fileName = malloc(BUFFER_SIZE * sizeof(char));
+
+    if(verificareArgument(argc, argv[1]) == 1){
+        parcurgeDirector(argv[1], &fOut);
+    }
 
     close(fIn);
     close(fOut);
