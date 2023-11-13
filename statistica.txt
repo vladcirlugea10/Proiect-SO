@@ -1,10 +1,16 @@
+Nume director: Folder/Folder1
+Identificatorul Utilizatorului: 1000
+Drepturi de acces user: RWX
+Drepturi de acces grup: RWX
+Drepturi de acces altii: R-X
+
 Nume Fisier: Image.bmp
-Dimensiune: FF38
-Latime: F80
-Inaltime: FAA
+Dimensiune: 818058 octeti
+Inaltime: 426
+Latime: 640
 Dimensiune: 818058 octeti
 Identificatorul Utilizatorului: 1000
-Ultima modificare: Sat Nov 11 17:52:58 2023
+Ultima modificare: Mon Nov 13 12:01:34 2023
 Contorul de legaturi: 1
 Drepturi de acces user: RW-
 Drepturi de acces grup: RW-
@@ -19,13 +25,20 @@ Drepturi de acces user: RW-
 Drepturi de acces grup: RW-
 Drepturi de acces altii: R--
 
+Nume legatura: Folder/Imagine
+Dimensiune legatura: 11 octeti
+Dimensiune fisier target: 7372938 octeti
+Drepturi de acces user legatura: RWX
+Drepturi de acces grup legatura: RWX
+Drepturi de acces altii legatura: RWX
+
 Nume Fisier: Imagine.bmp
-Dimensiune: FF38
-pLatime: F80
-Inaltime: 
+Dimensiune: 7372938 octeti
+Inaltime: 1280
+Latime: 1920
 Dimensiune: 7372938 octeti
 Identificatorul Utilizatorului: 1000
-Ultima modificare: Sat Nov 11 17:55:12 2023
+Ultima modificare: Mon Nov 13 12:01:34 2023
 Contorul de legaturi: 1
 Drepturi de acces user: RW-
 Drepturi de acces grup: RW-
