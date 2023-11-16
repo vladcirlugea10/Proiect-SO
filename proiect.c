@@ -7,27 +7,38 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <time.h>
+#include <sys/wait.h>
+#include <sys/types.h>
 #define BUFFER_SIZE 512
 #define READ_BUFFER_SIZE 2
 
-int verificareArgument(int nrArgumente, char* director){
-    struct stat data;
-    DIR *dir;
+int verificareArgument(int nrArgumente, char* directorIntrare, char* directorIesire){
+    struct stat data, data1;
+    DIR *dirInt, *dirIes;
 
-    if((nrArgumente != 2)){
-        perror("Usage ./program <director>\n");
+    if((nrArgumente != 3)){
+        perror("Usage ./program <directorIntrare> <directorIesire>\n");
         exit(-1);
     }
-    if((dir = opendir(director)) == NULL){
-        perror("Eroare la deschiderea directorului!\n");
+    if((dirInt = opendir(directorIntrare)) == NULL){
+        perror("Eroare la deschiderea directorului intrare!\n");
         exit(-1);
     }
-    if(lstat(director, &data) < 0){
-        perror("Eroare la obtinerea informatiilor despre director!\n");
+    if(lstat(directorIntrare, &data) < 0){
+        perror("Eroare la obtinerea informatiilor despre directorul intrare!\n");
         exit(-1);
     }
+    if((dirIes = opendir(directorIesire)) == NULL){
+        perror("Eroare la deschiderea directorului iesire!\n");
+        exit(-1);
+    }
+    if(lstat(directorIesire, &data1) < 0){
+        perror("Eroare la obtinerea informatiilor despre directorul iesire!\n");
+        exit(-1);
+    }
+    int m1 = data1.st_mode;
     int m = data.st_mode;
-    if(S_ISDIR(m)){
+    if(S_ISDIR(m) && S_ISDIR(m1)){
         printf("Director!\n");
         return 1;
     }
@@ -74,9 +85,11 @@ int verificareBMP(char *denumireFisier){
 }
 
 
-int creareFisier(char *denumire){
+int creareFisier(char* director, char *denumire){
     int fisier;
-    if((fisier = open(denumire, O_WRONLY | O_TRUNC |O_CREAT, S_IRWXU)) < 0){
+    char caleFisier[BUFFER_SIZE];
+    sprintf(caleFisier, "%s/%s", director, denumire);
+    if((fisier = open(caleFisier, O_WRONLY | O_TRUNC |O_CREAT, S_IRWXU)) < 0){
         perror("Eroare la crearea fisierului!\n");
         exit(-1);
     }
@@ -424,85 +437,151 @@ void scrieDirector(int fisierIesire, char *director) {
     }
 }
 
-void parcurgeDirector(char *director, int *fisierIesire) {
-    DIR *dir;
-    struct dirent *intrare;
+void modificaCuloare(char *fisierIntrare, char *fisierIesire){
+    int fIn = open(fisierIntrare, O_RDONLY);
+    int fOut = open(fisierIesire, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 
-    if ((dir = opendir(director)) == NULL) {
-        perror("Eroare la deschiderea directorului!\n");
+    if(fIn < 0 || fOut < 0){
+        perror("Eroare la deshiderea imaginilor!\n");
         exit(-1);
     }
-    printf("Director deschis: %s\n", director);
-    *fisierIesire = creareFisier("statistica.txt");
+    unsigned char headerBMP[54];
+    read(fIn, headerBMP, 54);
+    write(fOut, headerBMP, 54);
 
+    u_int32_t latime = *(u_int32_t*)&headerBMP[18];
+    u_int32_t inaltime = *(u_int32_t*)headerBMP[22];
+    u_int32_t offset = 0;
+    if(((latime * 3) % 4) != 0){
+        offset = 4 - ((latime * 3) % 4);
+    }
+
+    unsigned char pixel[3];
+    double pixelGri;
+
+    for(u_int32_t i = 0; i<inaltime; i++){
+        for(u_int32_t j = 0; j<latime; j++){
+            read(fIn, pixel, 3);
+            
+            pixelGri = 0.299*pixel[2] + 0.587*pixel[1] + 0.114*pixel[0];
+            pixel[0] = pixelGri;
+            pixel[1] = pixelGri;
+            pixel[2] = pixelGri;
+
+            write(fOut, pixel, 3);
+        }
+        lseek(fIn, offset, SEEK_CUR);
+        for(u_int32_t k = 0; k<offset; k++){
+            unsigned char offsetByte = 0x00;
+            write(fOut, &offsetByte, 1);
+        }
+    }
+    close(fIn);
+    close(fOut);
+}
+int coduriIesire[100];
+void parcurgeDirector(char *directorIntrare, char *directorIesire) {
+    DIR *dir, *dirIesire;
+    struct dirent *intrare;
+    int pid, nrCopii = 0, status;
+
+    if ((dir = opendir(directorIntrare)) == NULL) {
+        perror("Eroare la deschiderea directorului intrare!\n");
+        exit(-1);
+    }
+    printf("Director intrare deschis: %s\n", directorIntrare);
+
+    if ((dirIesire = opendir(directorIesire)) == NULL) {
+        perror("Eroare la deschiderea directorului iesire!\n");
+        exit(-1);
+    }
+    printf("Director iesire deschis: %s\n", directorIesire);
+    int index = 0;
     while ((intrare = readdir(dir)) != NULL) {
         if (strcmp(intrare->d_name, ".") == 0 || strcmp(intrare->d_name, "..") == 0) {
             continue;
         }
-
-        char buffer[BUFFER_SIZE];
-        sprintf(buffer, "%s/%s", director, intrare->d_name);
-        printf("Element gasit: %s\n", buffer);
-
-        struct stat fileStat;
-        if (lstat(buffer, &fileStat) < 0) {
-            perror("Eroare la preluarea informatiilor despre element!\n");
+        if((pid = fork()) < 0){
+            perror("Eroare la crearea procesului fiu!\n");
             exit(-1);
         }
+        if(pid == 0){
+            ++nrCopii;
+            char buffer[BUFFER_SIZE];
+            sprintf(buffer, "%s/%s", directorIntrare, intrare->d_name);
+            printf("Element gasit: %s\n", buffer);
 
-        if (S_ISLNK(fileStat.st_mode)) {
-            char target[BUFFER_SIZE];
-            int octetiCititi;
-            if ((octetiCititi = readlink(buffer, target, sizeof(target) - 1)) != -1) {
-                target[octetiCititi] = '\0';
-                printf("Legatura simbolica: %s -> %s\n", buffer, target);
-                scrieLegaturaSimbolica(*fisierIesire, buffer, target, director);
-            } else {
-                perror("Eroare la citirea legaturii simbolice!\n");
+            char fisierSatistica[BUFFER_SIZE];
+            sprintf(fisierSatistica, "%s_statistica.txt", intrare->d_name);
+            int fisierIesire = creareFisier(directorIesire, fisierSatistica);
+
+            struct stat fileStat;
+            if (lstat(buffer, &fileStat) < 0) {
+                perror("Eroare la preluarea informatiilor despre element!\n");
                 exit(-1);
             }
-        } else if (S_ISREG(fileStat.st_mode)) {
-            if (verificareBMP(buffer)) {
-                char caleCompleta[BUFFER_SIZE];
-                sprintf(caleCompleta, "%s/%s", director, intrare->d_name);
-                int fisierBMP = open(caleCompleta, O_RDONLY);
-                if (fisierBMP < 0) {
-                    perror("Eroare la deschiderea fisierului BMP!\n");
+
+            if (S_ISLNK(fileStat.st_mode)) {
+                char target[BUFFER_SIZE];
+                int octetiCititi;
+                if ((octetiCititi = readlink(buffer, target, sizeof(target) - 1)) != -1) {
+                    target[octetiCititi] = '\0';
+                    printf("Legatura simbolica: %s -> %s\n", buffer, target);
+                    scrieLegaturaSimbolica(fisierIesire, buffer, target, directorIntrare);
+                } else {
+                    perror("Eroare la citirea legaturii simbolice!\n");
                     exit(-1);
                 }
-                scrieNumeFisier(*fisierIesire, intrare->d_name);
-                scriereDataBMP(fisierBMP, *fisierIesire);
-                scriereDateFisier(fisierBMP, *fisierIesire);
-                close(fisierBMP);
-            } else {
-                char caleCompleta[BUFFER_SIZE];
-                sprintf(caleCompleta, "%s/%s", director, intrare->d_name);
-                int fisierSimplu = open(caleCompleta, O_RDONLY);
-                if (fisierSimplu < 0) {
-                    perror("Eroare la deschiderea fisierului simplu!\n");
-                    exit(-1);
+            } else if (S_ISREG(fileStat.st_mode)) {
+                if (verificareBMP(buffer)) {
+                    char caleCompleta[BUFFER_SIZE];
+                    char caleCompletaIesire[BUFFER_SIZE];
+                    sprintf(caleCompletaIesire, "%s/%s_gri.bmp", directorIesire, intrare->d_name);
+                    sprintf(caleCompleta, "%s/%s", directorIntrare, intrare->d_name);
+                    int fisierBMP = open(caleCompleta, O_RDONLY);
+                    if (fisierBMP < 0) {
+                        perror("Eroare la deschiderea fisierului BMP!\n");
+                        exit(-1);
+                    }
+                    scrieNumeFisier(fisierIesire, intrare->d_name);
+                    scriereDataBMP(fisierBMP, fisierIesire);
+                    scriereDateFisier(fisierBMP, fisierIesire);
+                    modificaCuloare(caleCompleta, caleCompletaIesire);
+                    close(fisierBMP);
+                } else {
+                    char caleCompleta[BUFFER_SIZE];
+                    sprintf(caleCompleta, "%s/%s", directorIntrare, intrare->d_name);
+                    int fisierSimplu = open(caleCompleta, O_RDONLY);
+                    if (fisierSimplu < 0) {
+                        perror("Eroare la deschiderea fisierului simplu!\n");
+                        exit(-1);
+                    }
+                    scrieNumeFisier(fisierIesire, intrare->d_name);
+                    scriereDateFisier(fisierSimplu, fisierIesire);
+                    close(fisierSimplu);
                 }
-                scrieNumeFisier(*fisierIesire, intrare->d_name);
-                scriereDateFisier(fisierSimplu, *fisierIesire);
-                close(fisierSimplu);
+            } else if (S_ISDIR(fileStat.st_mode)) {
+                printf("Este director: %s\n", buffer);
+                scrieDirector(fisierIesire, buffer);
             }
-        } else if (S_ISDIR(fileStat.st_mode)) {
-            printf("Este director: %s\n", buffer);
-            scrieDirector(*fisierIesire, buffer);
+            close(fisierIesire);
+            exit(nrCopii);
         }
-   
+        sleep(1);
+        waitpid(pid, &status, 0);
+        if (WIFEXITED(status)) {
+            coduriIesire[index++] = WEXITSTATUS(status);
+        }
+        for (int j = 0; j < index; j++) {
+        printf("Procesul %d s-a încheiat cu codul: %d.\n", j + 1, coduriIesire[j]);
+        }
     }
 }
 
-
 int main(int argc, char *argv[]){
-    int fOut = 0;
-
-    if(verificareArgument(argc, argv[1]) == 1){
-        parcurgeDirector(argv[1], &fOut);
+    if(verificareArgument(argc, argv[1], argv[2]) == 1){
+        parcurgeDirector(argv[1], argv[2]);
     }
-
-    close(fOut);
 
     return 0;
 }

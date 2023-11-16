@@ -1,0 +1,12 @@
+Nume Fisier: Image.bmp
+Dimensiune: 818058 octeti
+Inaltime: 426
+Latime: 640
+Dimensiune: 818058 octeti
+Identificatorul Utilizatorului: 1000
+Ultima modificare: Thu Nov 16 17:58:58 2023
+Contorul de legaturi: 1
+Drepturi de acces user: RW-
+Drepturi de acces grup: RW-
+Drepturi de acces altii: R--
+

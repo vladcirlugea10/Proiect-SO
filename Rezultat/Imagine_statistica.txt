@@ -1,0 +1,7 @@
+Nume legatura: Folder/Imagine
+Dimensiune legatura: 11 octeti
+Dimensiune fisier target: 7372938 octeti
+Drepturi de acces user legatura: RWX
+Drepturi de acces grup legatura: RWX
+Drepturi de acces altii legatura: RWX
+
