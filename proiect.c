@@ -437,20 +437,18 @@ void scrieDirector(int fisierIesire, char *director) {
     }
 }
 
-void modificaCuloare(char *fisierIntrare, char *fisierIesire){
-    int fIn = open(fisierIntrare, O_RDONLY);
-    int fOut = open(fisierIesire, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+void modificaCuloare(char *fisierIntrare){
+    int fIn = open(fisierIntrare, O_RDWR);
 
-    if(fIn < 0 || fOut < 0){
+    if(fIn < 0){
         perror("Eroare la deshiderea imaginilor!\n");
         exit(-1);
     }
     unsigned char headerBMP[54];
     read(fIn, headerBMP, 54);
-    write(fOut, headerBMP, 54);
 
     int latime = *(int*)&headerBMP[18];
-    int inaltime = *(int*)headerBMP[22];
+    int inaltime = *(int*)&headerBMP[22];
     int offset = 0;
     if(((latime * 3) % 4) != 0){
         offset = 4 - ((latime * 3) % 4);
@@ -458,6 +456,7 @@ void modificaCuloare(char *fisierIntrare, char *fisierIesire){
 
     unsigned char pixel[3];
     double pixelGri;
+    lseek(fIn, 54, SEEK_SET);
 
     for(int i = 0; i<inaltime; i++){
         for(int j = 0; j<latime; j++){
@@ -467,17 +466,12 @@ void modificaCuloare(char *fisierIntrare, char *fisierIesire){
             pixel[0] = (unsigned char)pixelGri;
             pixel[1] = (unsigned char)pixelGri;
             pixel[2] = (unsigned char)pixelGri;
-
-            write(fOut, pixel, 3);
+            lseek(fIn, -3, SEEK_CUR);
+            write(fIn, pixel, 3);
         }
         lseek(fIn, offset, SEEK_CUR);
-        for(int k = 0; k<offset; k++){
-            unsigned char offsetByte = 0x00;
-            write(fOut, &offsetByte, 1);
-        }
     }
     close(fIn);
-    close(fOut);
 }
 int coduriIesire[100];
 void parcurgeDirector(char *directorIntrare, char *directorIesire) {
@@ -535,8 +529,6 @@ void parcurgeDirector(char *directorIntrare, char *directorIesire) {
             } else if (S_ISREG(fileStat.st_mode)) {
                 if (verificareBMP(buffer)) {
                     char caleCompleta[BUFFER_SIZE];
-                    char caleCompletaIesire[BUFFER_SIZE];
-                    sprintf(caleCompletaIesire, "%s/%s_gri.bmp", directorIesire, intrare->d_name);
                     sprintf(caleCompleta, "%s/%s", directorIntrare, intrare->d_name);
                     int fisierBMP = open(caleCompleta, O_RDONLY);
                     if (fisierBMP < 0) {
@@ -546,7 +538,7 @@ void parcurgeDirector(char *directorIntrare, char *directorIesire) {
                     scrieNumeFisier(fisierIesire, intrare->d_name);
                     scriereDataBMP(fisierBMP, fisierIesire);
                     scriereDateFisier(fisierBMP, fisierIesire);
-                    modificaCuloare(caleCompleta, caleCompletaIesire);
+                    modificaCuloare(caleCompleta);
                     close(fisierBMP);
                 } else {
                     char caleCompleta[BUFFER_SIZE];
