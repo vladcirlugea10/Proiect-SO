@@ -449,9 +449,9 @@ void modificaCuloare(char *fisierIntrare, char *fisierIesire){
     read(fIn, headerBMP, 54);
     write(fOut, headerBMP, 54);
 
-    u_int32_t latime = *(u_int32_t*)&headerBMP[18];
-    u_int32_t inaltime = *(u_int32_t*)headerBMP[22];
-    u_int32_t offset = 0;
+    int latime = *(int*)&headerBMP[18];
+    int inaltime = *(int*)headerBMP[22];
+    int offset = 0;
     if(((latime * 3) % 4) != 0){
         offset = 4 - ((latime * 3) % 4);
     }
@@ -459,19 +459,19 @@ void modificaCuloare(char *fisierIntrare, char *fisierIesire){
     unsigned char pixel[3];
     double pixelGri;
 
-    for(u_int32_t i = 0; i<inaltime; i++){
-        for(u_int32_t j = 0; j<latime; j++){
+    for(int i = 0; i<inaltime; i++){
+        for(int j = 0; j<latime; j++){
             read(fIn, pixel, 3);
             
             pixelGri = 0.299*pixel[2] + 0.587*pixel[1] + 0.114*pixel[0];
-            pixel[0] = pixelGri;
-            pixel[1] = pixelGri;
-            pixel[2] = pixelGri;
+            pixel[0] = (unsigned char)pixelGri;
+            pixel[1] = (unsigned char)pixelGri;
+            pixel[2] = (unsigned char)pixelGri;
 
             write(fOut, pixel, 3);
         }
         lseek(fIn, offset, SEEK_CUR);
-        for(u_int32_t k = 0; k<offset; k++){
+        for(int k = 0; k<offset; k++){
             unsigned char offsetByte = 0x00;
             write(fOut, &offsetByte, 1);
         }

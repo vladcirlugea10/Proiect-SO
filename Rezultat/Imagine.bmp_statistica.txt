@@ -4,7 +4,7 @@ Inaltime: 1280
 Latime: 1920
 Dimensiune: 7372938 octeti
 Identificatorul Utilizatorului: 1000
-Ultima modificare: Thu Nov 16 17:59:01 2023
+Ultima modificare: Mon Nov 20 18:59:24 2023
 Contorul de legaturi: 1
 Drepturi de acces user: RW-
 Drepturi de acces grup: RW-
