@@ -506,11 +506,6 @@ void parcurgeDirector(char *directorIntrare, char *directorIesire, char c) {
     }
     printf("Director iesire deschis: %s\n", directorIesire);
     int index = 0;
-    int pf[2], ff[2];
-    if(pipe(pf) == -1){
-        perror("Eroare la pipe!\n");
-        exit(-1);
-    }
 
     while ((intrare = readdir(dir)) != NULL) {
         if (strcmp(intrare->d_name, ".") == 0 || strcmp(intrare->d_name, "..") == 0) {
@@ -562,11 +557,6 @@ void parcurgeDirector(char *directorIntrare, char *directorIesire, char c) {
                     modificaCuloare(caleCompleta);
                     close(fisierBMP);
                 } else {
-                    int pid2;
-                    if((pid2 = fork()) < 0){
-                        perror("Eroare la crearea procesului pt fisiere obisnuite!\n");
-                        exit(-1);
-                    }
                     char caleCompleta[BUFFER_SIZE];
                     sprintf(caleCompleta, "%s/%s", directorIntrare, intrare->d_name);
                     int fisierSimplu = open(caleCompleta, O_RDONLY);
@@ -576,14 +566,6 @@ void parcurgeDirector(char *directorIntrare, char *directorIesire, char c) {
                     }
                     scrieNumeFisier(fisierIesire, intrare->d_name);
                     scriereDateFisier(fisierSimplu, fisierIesire);
-                    if(pid2 == 0){
-                        close(pf[1]);
-                        proces(pf[0], STDOUT_FILENO);
-                        int nrPropCorecte = system("./script.sh");
-                        close(pf[0]);
-                        write(pf[1], &nrPropCorecte, sizeof(int));
-                        close(pf[1]);
-                    }
                     close(fisierSimplu);
                 }
             } else if (S_ISDIR(fileStat.st_mode)) {
@@ -594,20 +576,20 @@ void parcurgeDirector(char *directorIntrare, char *directorIesire, char c) {
             exit(nrCopii);
         }
         sleep(1);
-        waitpid(pid, &status, 0);
-        if (WIFEXITED(status)) {
-            coduriIesire[index++] = WEXITSTATUS(status);
+    }
+    printf("%d\n", nrCopii);
+    for(int l = 0; l < nrCopii; l++){
+        int status;
+        pid_t waitstatus = wait(&status);
+        if(waitstatus == -1){
+            exit(-1);
         }
-        for (int j = 0; j < index; j++) {
-        printf("Procesul %d s-a încheiat cu codul: %d.\n", j + 1, coduriIesire[j]);
+        if(WIFEXITED(status)){
+            printf("Procesul cu numarul %d s-a incheiat cu codul %d!\n", waitstatus, WEXITSTATUS(status));
         }
     }
-    int nrProp = 0;
-        read(pf[0], &nrProp, sizeof(int));
-        close(pf[0]);
-        printf("Au fost identificate in total %d propozitii corecte care contin caracterul %c", nrProp, c);
+    nrCopii = 0;
 }
-
 int main(int argc, char *argv[]){
     if(verificareArgument(argc, argv[1], argv[2], argv[3]) == 1){
         parcurgeDirector(argv[1], argv[2], argv[3]);

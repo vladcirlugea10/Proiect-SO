@@ -1,13 +1,4 @@
 Nume Fisier: fisier.txt
-Nume Fisier: fisier.txt
-Dimensiune: 0 octeti
-Identificatorul Utilizatorului: 1000
-Ultima modificare: Fri Nov 10 15:19:02 2023
-Contorul de legaturi: 1
-Drepturi de acces user: RW-
-Drepturi de acces grup: RW-
-Drepturi de acces altii: R--
-
 Dimensiune: 0 octeti
 Identificatorul Utilizatorului: 1000
 Ultima modificare: Fri Nov 10 15:19:02 2023
