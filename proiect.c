@@ -13,7 +13,7 @@
 #define BUFFER_SIZE 512
 #define READ_BUFFER_SIZE 2
 
-int verificareArgument(int nrArgumente, char* directorIntrare, char* directorIesire, unsigned char c){
+int verificareArgument(int nrArgumente, char* directorIntrare, char* directorIesire, char c){
     struct stat data, data1;
     DIR *dirInt, *dirIes;
 
@@ -478,17 +478,6 @@ void modificaCuloare(char *fisierIntrare){
     }
     close(fIn);
 }
-void proces(int fIn, int scriere){
-    close(scriere);
-    char buffer[READ_BUFFER_SIZE];
-    ssize_t bytesCititi;
-    while((bytesCititi = read(fIn, buffer, READ_BUFFER_SIZE)) > 0){
-        write(scriere, buffer, bytesCititi);
-    }
-    close(fIn);
-    exit(0);
-}
-int coduriIesire[100];
 void parcurgeDirector(char *directorIntrare, char *directorIesire, char c) {
     DIR *dir, *dirIesire;
     struct dirent *intrare;
@@ -505,8 +494,17 @@ void parcurgeDirector(char *directorIntrare, char *directorIesire, char c) {
         exit(-1);
     }
     printf("Director iesire deschis: %s\n", directorIesire);
-    int index = 0;
-
+    int fp[2], ff[2];
+    if(pipe(fp) < 0)
+    {
+        perror("Eroare la pipe fiu-parinte!\n");
+        exit(-1);
+    }
+    if(pipe(ff) < 0)
+    {
+        perror("Eroare la pipe fiu-fiu!\n");
+        exit(-1);
+    }
     while ((intrare = readdir(dir)) != NULL) {
         if (strcmp(intrare->d_name, ".") == 0 || strcmp(intrare->d_name, "..") == 0) {
             continue;
@@ -515,8 +513,8 @@ void parcurgeDirector(char *directorIntrare, char *directorIesire, char c) {
             perror("Eroare la crearea procesului fiu!\n");
             exit(-1);
         }
+        ++nrCopii;
         if(pid == 0){
-            ++nrCopii;
             char buffer[BUFFER_SIZE];
             sprintf(buffer, "%s/%s", directorIntrare, intrare->d_name);
             printf("Element gasit: %s\n", buffer);
@@ -524,7 +522,6 @@ void parcurgeDirector(char *directorIntrare, char *directorIesire, char c) {
             char fisierSatistica[BUFFER_SIZE];
             sprintf(fisierSatistica, "%s_statistica.txt", intrare->d_name);
             int fisierIesire = creareFisier(directorIesire, fisierSatistica);
-
             struct stat fileStat;
             if (lstat(buffer, &fileStat) < 0) {
                 perror("Eroare la preluarea informatiilor despre element!\n");
@@ -577,11 +574,9 @@ void parcurgeDirector(char *directorIntrare, char *directorIesire, char c) {
         }
         sleep(1);
     }
-    printf("%d\n", nrCopii);
     for(int l = 0; l < nrCopii; l++){
-        int status;
-        pid_t waitstatus = wait(&status);
-        if(waitstatus == -1){
+        int waitstatus = wait(&status);
+        if(waitstatus < 0){
             exit(-1);
         }
         if(WIFEXITED(status)){
