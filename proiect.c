@@ -9,15 +9,20 @@
 #include <time.h>
 #include <sys/wait.h>
 #include <sys/types.h>
+#include <ctype.h>
 #define BUFFER_SIZE 512
 #define READ_BUFFER_SIZE 2
 
-int verificareArgument(int nrArgumente, char* directorIntrare, char* directorIesire){
+int verificareArgument(int nrArgumente, char* directorIntrare, char* directorIesire, unsigned char c){
     struct stat data, data1;
     DIR *dirInt, *dirIes;
 
-    if((nrArgumente != 3)){
-        perror("Usage ./program <directorIntrare> <directorIesire>\n");
+    if((nrArgumente != 4)){
+        perror("Usage ./program <directorIntrare> <directorIesire> <caracterAlfanumeric>\n");
+        exit(-1);
+    }
+    if(isalnum(c)){
+        perror("Caracterul nu este alfanumeric!\n");
         exit(-1);
     }
     if((dirInt = opendir(directorIntrare)) == NULL){
@@ -39,7 +44,7 @@ int verificareArgument(int nrArgumente, char* directorIntrare, char* directorIes
     int m1 = data1.st_mode;
     int m = data.st_mode;
     if(S_ISDIR(m) && S_ISDIR(m1)){
-        printf("Director!\n");
+        printf("Argumente Ok!\n");
         return 1;
     }
     else{
@@ -144,10 +149,10 @@ void scriereDateFisier(int fisierIntrare, int fisierIesire){
         perror("Eroare la obtinerea informatiilor despre fisier!\n");
         exit(-1);
     }
-    sprintf(fileSize, "Dimensiune: %d octeti\n", data.st_size);
+    sprintf(fileSize, "Dimensiune: %ld octeti\n", data.st_size);
     sprintf(userID, "Identificatorul Utilizatorului: %d\n", data.st_uid);
     sprintf(lastModified, "Ultima modificare: %s", ctime(&data.st_atime));
-    sprintf(nrOfLinks, "Contorul de legaturi: %d\n", data.st_nlink);
+    sprintf(nrOfLinks, "Contorul de legaturi: %ld\n", data.st_nlink);
     if(write(fisierIesire, fileSize, strlen(fileSize)) < 0){
         perror("Eroare la scrierea dimensiunii!\n");
         exit(-1);
@@ -266,8 +271,8 @@ void scrieLegaturaSimbolica(int fisierIesire, char *legatura, char *fisierTarget
         exit(-1);
     }
 
-    sprintf(linkSize, "Dimensiune legatura: %d octeti\n", linkStat.st_size);
-    sprintf(targetSize, "Dimensiune fisier target: %d octeti\n", targetStat.st_size);
+    sprintf(linkSize, "Dimensiune legatura: %ld octeti\n", linkStat.st_size);
+    sprintf(targetSize, "Dimensiune fisier target: %ld octeti\n", targetStat.st_size);
 
     if (write(fisierIesire, linkName, strlen(linkName)) < 0) {
         perror("Eroare la scrierea numelui legaturii!\n");
@@ -473,8 +478,18 @@ void modificaCuloare(char *fisierIntrare){
     }
     close(fIn);
 }
+void proces(int fIn, int scriere){
+    close(scriere);
+    char buffer[READ_BUFFER_SIZE];
+    ssize_t bytesCititi;
+    while((bytesCititi = read(fIn, buffer, READ_BUFFER_SIZE)) > 0){
+        write(scriere, buffer, bytesCititi);
+    }
+    close(fIn);
+    exit(0);
+}
 int coduriIesire[100];
-void parcurgeDirector(char *directorIntrare, char *directorIesire) {
+void parcurgeDirector(char *directorIntrare, char *directorIesire, char c) {
     DIR *dir, *dirIesire;
     struct dirent *intrare;
     int pid, nrCopii = 0, status;
@@ -491,6 +506,12 @@ void parcurgeDirector(char *directorIntrare, char *directorIesire) {
     }
     printf("Director iesire deschis: %s\n", directorIesire);
     int index = 0;
+    int pf[2], ff[2];
+    if(pipe(pf) == -1){
+        perror("Eroare la pipe!\n");
+        exit(-1);
+    }
+
     while ((intrare = readdir(dir)) != NULL) {
         if (strcmp(intrare->d_name, ".") == 0 || strcmp(intrare->d_name, "..") == 0) {
             continue;
@@ -541,6 +562,11 @@ void parcurgeDirector(char *directorIntrare, char *directorIesire) {
                     modificaCuloare(caleCompleta);
                     close(fisierBMP);
                 } else {
+                    int pid2;
+                    if((pid2 = fork()) < 0){
+                        perror("Eroare la crearea procesului pt fisiere obisnuite!\n");
+                        exit(-1);
+                    }
                     char caleCompleta[BUFFER_SIZE];
                     sprintf(caleCompleta, "%s/%s", directorIntrare, intrare->d_name);
                     int fisierSimplu = open(caleCompleta, O_RDONLY);
@@ -550,6 +576,14 @@ void parcurgeDirector(char *directorIntrare, char *directorIesire) {
                     }
                     scrieNumeFisier(fisierIesire, intrare->d_name);
                     scriereDateFisier(fisierSimplu, fisierIesire);
+                    if(pid2 == 0){
+                        close(pf[1]);
+                        proces(pf[0], STDOUT_FILENO);
+                        int nrPropCorecte = system("./script.sh");
+                        close(pf[0]);
+                        write(pf[1], &nrPropCorecte, sizeof(int));
+                        close(pf[1]);
+                    }
                     close(fisierSimplu);
                 }
             } else if (S_ISDIR(fileStat.st_mode)) {
@@ -568,12 +602,15 @@ void parcurgeDirector(char *directorIntrare, char *directorIesire) {
         printf("Procesul %d s-a încheiat cu codul: %d.\n", j + 1, coduriIesire[j]);
         }
     }
+    int nrProp = 0;
+        read(pf[0], &nrProp, sizeof(int));
+        close(pf[0]);
+        printf("Au fost identificate in total %d propozitii corecte care contin caracterul %c", nrProp, c);
 }
 
 int main(int argc, char *argv[]){
-    if(verificareArgument(argc, argv[1], argv[2]) == 1){
-        parcurgeDirector(argv[1], argv[2]);
+    if(verificareArgument(argc, argv[1], argv[2], argv[3]) == 1){
+        parcurgeDirector(argv[1], argv[2], argv[3]);
     }
-
     return 0;
 }
