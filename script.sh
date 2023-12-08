@@ -1,18 +1,12 @@
 #!/bin/bash
 
-if [ "$#" -ne 2 ]; then
-    echo "Usage: $0 <caracter> <file>"
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $0 <caracter>"
     exit 1
 fi
 
 caracter="$1"
-file="$2"
 propozitii_corecte=0
-
-if [ ! -f "$file" ]; then
-    echo "File not found!"
-    exit 1
-fi
 
 while IFS= read -r line || [[ -n "$line" ]]; do
     if echo "$line" | grep -Eq "^[A-Z][a-zA-Z0-9 ,]*[\.\?\!]$"; then
@@ -22,6 +16,6 @@ while IFS= read -r line || [[ -n "$line" ]]; do
             fi
         fi
     fi
-done < "$file"
+done
 
 echo "$propozitii_corecte"

@@ -478,10 +478,76 @@ void modificaCuloare(char *fisierIntrare){
     }
     close(fIn);
 }
+void pipeFiuFiu(int ff[2], int fp[2], char *fisier){
+    if(close(ff[0]) < 0)
+    {
+        perror("Eroare la inchidere pipe fiu-fiu!\n");
+        exit(-1);
+    }
+    if(close(fp[0]) < 0)
+    {
+        perror("Eroare la inchidere pipe fiu-parinte!\n");
+        exit(-1);
+    }
+    if(close(fp[1]) < 0)
+    {
+        perror("Eroare la inchidere pipe fiu-parinte!\n");
+        exit(-1);
+    }
+    int fis = open(fisier, O_RDONLY);
+    if(fis < 0)
+    {
+        perror("Eroare la deschiderea fisierului!\n");
+        exit(-1);
+    }
+    char buffer[BUFFER_SIZE];
+    int rd = -1;
+    while((rd = read(fis, buffer, 256)) > 0)
+    {
+        write(ff[1], &buffer, rd);
+    }
+    if(close(ff[1]) < 0)
+    {
+        perror("Eroare la inchiderea scrierii fiu-fiu!\n");
+    }
+}
+void pipeFiuParinte(int ff[2], int fp[2], char c){
+    if (close(fp[0]) < 0) {
+        perror("Eroare la inchiderea pipe fiu-parinte!\n");
+        exit(-1);
+    }
+    if (close(ff[1]) < 0) {
+        perror("Eroare la inchiderea pipe fiu-fiu!\n");
+        exit(-1);
+    }
+    if (dup2(ff[0], 0) < 0) {
+        perror("Eroare la redirectarea citirii!\n");
+        exit(-1);
+    }
+    if (close(ff[0]) < 0) {
+        perror("Eroare la inchiderea pipe fiu-fiu!\n");
+        exit(-1);
+    }
+
+    if (dup2(fp[1], STDERR_FILENO) < 0) {
+        perror("Eroare la redirectarea scrierii!\n");
+        exit(-1);
+    }
+    if (close(fp[1]) < 0) {
+        perror("Eroare la inchiderea pipe fiu-parinte!\n");
+        exit(-1);
+    }
+    char script[100] = "./script.sh ";
+    strcat(script, c);
+    
+    execlp("/bin/bash", "/bin/bash", script, NULL);
+    perror("Error executing the script!\n");
+    exit(-1);
+}
 void parcurgeDirector(char *directorIntrare, char *directorIesire, char c) {
     DIR *dir, *dirIesire;
     struct dirent *intrare;
-    int pid, nrCopii = 0, status;
+    int nrCopii = 0, status;
 
     if ((dir = opendir(directorIntrare)) == NULL) {
         perror("Eroare la deschiderea directorului intrare!\n");
@@ -509,26 +575,27 @@ void parcurgeDirector(char *directorIntrare, char *directorIesire, char c) {
         if (strcmp(intrare->d_name, ".") == 0 || strcmp(intrare->d_name, "..") == 0) {
             continue;
         }
-        if((pid = fork()) < 0){
-            perror("Eroare la crearea procesului fiu!\n");
+        char buffer[BUFFER_SIZE];
+        sprintf(buffer, "%s/%s", directorIntrare, intrare->d_name);
+        printf("Element gasit: %s\n", buffer);
+
+        char fisierSatistica[BUFFER_SIZE];
+        sprintf(fisierSatistica, "%s_statistica.txt", intrare->d_name);
+        int fisierIesire = creareFisier(directorIesire, fisierSatistica);
+        struct stat fileStat;
+        if (lstat(buffer, &fileStat) < 0) {
+            perror("Eroare la preluarea informatiilor despre element!\n");
             exit(-1);
         }
-        ++nrCopii;
-        if(pid == 0){
-            char buffer[BUFFER_SIZE];
-            sprintf(buffer, "%s/%s", directorIntrare, intrare->d_name);
-            printf("Element gasit: %s\n", buffer);
 
-            char fisierSatistica[BUFFER_SIZE];
-            sprintf(fisierSatistica, "%s_statistica.txt", intrare->d_name);
-            int fisierIesire = creareFisier(directorIesire, fisierSatistica);
-            struct stat fileStat;
-            if (lstat(buffer, &fileStat) < 0) {
-                perror("Eroare la preluarea informatiilor despre element!\n");
+        if (S_ISLNK(fileStat.st_mode)) {
+            int pidLnk;
+            if((pidLnk = fork()) < 0){
+                perror("Eroare la crearea procesului fiu!\n");
                 exit(-1);
             }
-
-            if (S_ISLNK(fileStat.st_mode)) {
+            ++nrCopii;
+            if(pidLnk == 0){
                 char target[BUFFER_SIZE];
                 int octetiCititi;
                 if ((octetiCititi = readlink(buffer, target, sizeof(target) - 1)) != -1) {
@@ -539,8 +606,17 @@ void parcurgeDirector(char *directorIntrare, char *directorIesire, char c) {
                     perror("Eroare la citirea legaturii simbolice!\n");
                     exit(-1);
                 }
-            } else if (S_ISREG(fileStat.st_mode)) {
-                if (verificareBMP(buffer)) {
+                exit(nrCopii);
+            }
+        } else if (S_ISREG(fileStat.st_mode)) {
+            if (verificareBMP(buffer)) {
+                int pidBMP;
+                if((pidBMP = fork()) < 0){
+                    perror("Eroare la crearea procesului fiu!\n");
+                    exit(-1);
+                }
+                ++nrCopii;
+                if(pidBMP == 0){
                     char caleCompleta[BUFFER_SIZE];
                     sprintf(caleCompleta, "%s/%s", directorIntrare, intrare->d_name);
                     int fisierBMP = open(caleCompleta, O_RDONLY);
@@ -553,25 +629,50 @@ void parcurgeDirector(char *directorIntrare, char *directorIesire, char c) {
                     scriereDateFisier(fisierBMP, fisierIesire);
                     modificaCuloare(caleCompleta);
                     close(fisierBMP);
-                } else {
-                    char caleCompleta[BUFFER_SIZE];
-                    sprintf(caleCompleta, "%s/%s", directorIntrare, intrare->d_name);
-                    int fisierSimplu = open(caleCompleta, O_RDONLY);
-                    if (fisierSimplu < 0) {
-                        perror("Eroare la deschiderea fisierului simplu!\n");
+                    exit(nrCopii);
+                }
+            } else {
+                int pidNotBMP;
+                for(int j=0; j<2; j++){
+                    if((pidNotBMP = fork()) < 0){
+                        perror("Eroare la crearea procesului fiu!\n");
                         exit(-1);
                     }
-                    scrieNumeFisier(fisierIesire, intrare->d_name);
-                    scriereDateFisier(fisierSimplu, fisierIesire);
-                    close(fisierSimplu);
+                    ++nrCopii;
+                    if(pidNotBMP == 0){
+                        if(j == 0){
+                            char caleCompleta[BUFFER_SIZE];
+                            sprintf(caleCompleta, "%s/%s", directorIntrare, intrare->d_name);
+                            int fisierSimplu = open(caleCompleta, O_RDONLY);
+                            if (fisierSimplu < 0) {
+                                perror("Eroare la deschiderea fisierului simplu!\n");
+                                exit(-1);
+                            }
+                            scrieNumeFisier(fisierIesire, intrare->d_name);
+                            scriereDateFisier(fisierSimplu, fisierIesire);
+                            pipeFiuFiu(ff, fp, caleCompleta);
+                            close(fisierSimplu);
+                        } else {
+                            pipeFiuParinte(ff, fp, c);
+                        }
+                        exit(nrCopii);
+                    }
                 }
-            } else if (S_ISDIR(fileStat.st_mode)) {
+            }
+        } else if (S_ISDIR(fileStat.st_mode)) {
+            int pidDIR;
+            if((pidDIR = fork()) < 0){
+                perror("Eroare la crearea procesului fiu!\n");
+                exit(-1);
+            }
+            ++nrCopii;
+            if(pidDIR == 0){
                 printf("Este director: %s\n", buffer);
                 scrieDirector(fisierIesire, buffer);
+                exit(nrCopii);
             }
-            close(fisierIesire);
-            exit(nrCopii);
         }
+        close(fisierIesire);
         sleep(1);
     }
     for(int l = 0; l < nrCopii; l++){
